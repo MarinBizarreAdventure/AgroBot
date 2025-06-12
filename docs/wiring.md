@@ -1,204 +1,150 @@
-# AgroBot Hardware Wiring Guide
+# AgroBot Wiring Documentation
 
 ## Overview
-This document details the hardware connections between the Raspberry Pi, Pixhawk 6C, and RadioMaster Zorro components of the AgroBot system.
+This document details the hardware connections between the Raspberry Pi, Pixhawk 6C, and other components.
 
 ## Components
-1. Raspberry Pi 4
-2. Pixhawk 6C Flight Controller
-3. RadioMaster Zorro Transmitter
-4. RC Receiver
-5. GPS Module
-6. Power Distribution Board
-7. Motors and ESCs
-8. Telemetry Radio
+- Raspberry Pi 4
+- Pixhawk 6C Flight Controller
+- RadioMaster Zorro Transmitter
+- RC Receiver (connected to TELEM1)
+- M9N GPS Module (connected to GPS1)
+- Power Distribution Board
+- Motors and ESCs (8x3 connectors)
+- Telemetry Radio
 
 ## Connection Diagram
 ```
-[RadioMaster Zorro] <---> [RC Receiver] <---> [Pixhawk 6C] <---> [Raspberry Pi]
-                                                                    |
-                                                                    v
-                                                              [GPS Module]
-                                                                    |
-                                                                    v
-                                                              [Telemetry Radio]
+Raspberry Pi 4 <--USB--> Pixhawk 6C <--GPS1--> M9N GPS
+                              ^
+                              |
+                        TELEM1 Port
+                              ^
+                              |
+                        RC Receiver
+                              ^
+                              |
+                        RadioMaster Zorro
+
+Pixhawk 6C <--I/O PWM OUT [MAIN]--> 8x3 Motor Connector
+        ^
+        |
+<--FMU PWM OUT [AUX]--> 8x3 Motor Connector
 ```
 
 ## Detailed Connections
 
-### 1. Pixhawk 6C to Raspberry Pi
-```
-Pixhawk 6C USB-C Port <---> Raspberry Pi USB Port
-- Use a USB Type-C to USB Type-A cable
-- Connect to any USB port on the Raspberry Pi
-- The Pixhawk will be recognized as /dev/ttyACM0
-```
+### Pixhawk 6C to Raspberry Pi
+- Connect Pixhawk 6C USB-C port to Raspberry Pi USB port using USB Type-C to USB Type-A cable
+- The Pixhawk will be recognized as `/dev/ttyACM0`
 
-### 2. RC Receiver to Pixhawk
-```
-RC Receiver <---> Pixhawk RCIN Port
-- CH1 (Roll) -> RCIN 1
-- CH2 (Pitch) -> RCIN 2
-- CH3 (Throttle) -> RCIN 3
-- CH4 (Yaw) -> RCIN 4
-- CH5 (Mode) -> RCIN 5
-- CH6 (Aux1) -> RCIN 6
-- GND -> GND
-- 5V -> 5V
-```
+### RC Receiver to Pixhawk
+- Connect RC Receiver to Pixhawk's TELEM1 port
+- This port is used for both telemetry and RC input
+- The RC receiver will be automatically detected by the Pixhawk
 
-### 3. GPS Module to Pixhawk
-```
-GPS Module <---> Pixhawk GPS Port
-- GPS TX -> GPS RX
-- GPS RX -> GPS TX
-- GND -> GND
-- 5V -> 5V
-```
+### M9N GPS Module to Pixhawk
+- Connect M9N GPS module to Pixhawk's GPS1 port
+- The GPS module will be automatically detected and configured
+- Ensure clear view of the sky for optimal GPS reception
 
-### 4. Telemetry Radio to Raspberry Pi
-```
-Telemetry Radio <---> Raspberry Pi UART
-- TX -> GPIO 14 (RXD)
-- RX -> GPIO 15 (TXD)
-- GND -> GND
-- 5V -> 5V
-```
+### Motor Connections
+1. Main Output (I/O PWM OUT [MAIN]):
+   - 8x3 connector for main motor outputs
+   - Connect motors in the following order:
+     - Output 1: Front Left
+     - Output 2: Front Right
+     - Output 3: Rear Left
+     - Output 4: Rear Right
+     - Output 5: Left Middle
+     - Output 6: Right Middle
+     - Output 7: Left Aux
+     - Output 8: Right Aux
 
-### 5. Power Distribution
-```
-Power Distribution Board
-- Main Battery -> PDB Input
-- PDB Output 1 -> Pixhawk Power Module
-- PDB Output 2 -> Raspberry Pi (via 5V BEC)
-- PDB Output 3 -> RC Receiver
-- PDB Output 4 -> GPS Module
-- PDB Output 5 -> Telemetry Radio
-```
+2. Aux Output (FMU PWM OUT [AUX]):
+   - 8x3 connector for auxiliary motor outputs
+   - Connect additional motors or servos as needed
+   - Follow the same pinout as the main outputs
+
+### Power Distribution
+- Connect main battery to Power Distribution Board
+- Connect Power Distribution Board to:
+  - Pixhawk 6C
+  - ESCs for motors
+  - Raspberry Pi (if needed)
 
 ## Pin Assignments
 
-### Raspberry Pi USB Ports
-```
-USB Port 1: Pixhawk 6C (USB Type-C to Type-A)
-USB Port 2: Optional: Telemetry Radio
-USB Port 3: Optional: GPS Module
-USB Port 4: Optional: Other peripherals
-```
-
 ### Pixhawk 6C Ports
+- USB-C: Connection to Raspberry Pi
+- GPS1: M9N GPS Module
+- TELEM1: RC Receiver
+- I/O PWM OUT [MAIN]: 8x3 Motor Connector
+- FMU PWM OUT [AUX]: 8x3 Motor Connector
+
+### Motor Connector Pinout (8x3)
 ```
-USB-C: Raspberry Pi Connection
-- This port provides both power and data
-- Baud rate: 57600 (default)
-
-RCIN: Radio Control Input
-- Pin 1: CH1 (Roll)
-- Pin 2: CH2 (Pitch)
-- Pin 3: CH3 (Throttle)
-- Pin 4: CH4 (Yaw)
-- Pin 5: CH5 (Mode)
-- Pin 6: CH6 (Aux1)
-- Pin 7: GND
-- Pin 8: 5V
-
-GPS: GPS Module
-- Pin 1: TX
-- Pin 2: RX
-- Pin 3: GND
-- Pin 4: 5V
+[Signal] [Power] [Ground]
+   1       2       3
+   4       5       6
+   7       8       9
+  10      11      12
+  13      14      15
+  16      17      18
+  19      20      21
+  22      23      24
 ```
 
 ## Power Requirements
-
-### Voltage Levels
-- Main Battery: 3S LiPo (11.1V)
-- Pixhawk: 5V (via USB or Power Module)
-- Raspberry Pi: 5V (via USB or BEC)
-- RC Receiver: 5V
-- GPS Module: 5V
-- Telemetry Radio: 5V
-
-### Current Requirements
-- Raspberry Pi: 2.5A @ 5V
-- Pixhawk: 0.5A @ 5V
-- RC Receiver: 0.1A @ 5V
-- GPS Module: 0.1A @ 5V
-- Telemetry Radio: 0.2A @ 5V
-- Total: ~3.4A @ 5V
+- Pixhawk 6C: 5V from USB or Power Distribution Board
+- M9N GPS: 5V from Pixhawk
+- RC Receiver: 5V from Pixhawk
+- Motors: Voltage depends on your specific motors (typically 3S-6S LiPo)
 
 ## Safety Considerations
+1. Power Safety:
+   - Always disconnect battery before making connections
+   - Use appropriate voltage regulators
+   - Check polarity before connecting
 
-### 1. Power Protection
-- Use appropriate fuses for each power line
-- Implement reverse polarity protection
-- Add power filtering capacitors
-- Use quality BEC for voltage regulation
+2. Signal Safety:
+   - Ensure proper signal ground connections
+   - Use appropriate signal voltage levels
+   - Check for signal interference
 
-### 2. Signal Protection
-- Add level shifters if needed
-- Implement signal filtering
-- Use shielded cables for long runs
-- Add pull-up/pull-down resistors
-
-### 3. Physical Protection
-- Secure all connections with strain relief
-- Use heat shrink tubing for insulation
-- Implement cable management
-- Protect against vibration
+3. Physical Protection:
+   - Secure all connections
+   - Protect GPS antenna
+   - Ensure proper motor mounting
 
 ## Testing Procedures
+1. Power Testing:
+   - Test each component individually
+   - Verify voltage levels
+   - Check for proper power distribution
 
-### 1. Power Testing
-```bash
-# Check voltage levels
-multimeter -v 5V
-multimeter -v 3.3V
+2. Communication Testing:
+   - Verify GPS connection
+   - Test RC receiver connection
+   - Check motor signal outputs
 
-# Check current draw
-multimeter -a 5V
-```
-
-### 2. Communication Testing
-```bash
-# Test USB connection
-lsusb | grep Pixhawk
-
-# Test serial communication
-python3 scripts/test_uart.py
-
-# Test RC input
-python3 scripts/test_rc.py
-
-# Test GPS
-python3 scripts/test_gps.py
-```
-
-### 3. Integration Testing
-```bash
-# Test full system
-python3 scripts/test_system.py
-
-# Verify failsafe
-python3 scripts/test_failsafe.py
-```
+3. Integration Testing:
+   - Test complete system
+   - Verify all components work together
+   - Check for interference
 
 ## Maintenance
+1. Regular Checks:
+   - Inspect all connections
+   - Check for loose wires
+   - Verify GPS antenna condition
 
-### 1. Regular Checks
-- Inspect all connections
-- Check for loose wires
-- Verify power levels
-- Test communication
+2. Troubleshooting:
+   - Use Pixhawk logs
+   - Check component status
+   - Verify signal integrity
 
-### 2. Troubleshooting
-- Use multimeter for voltage checks
-- Use oscilloscope for signal analysis
-- Check continuity of connections
-- Verify ground connections
-
-### 3. Upgrades
-- Document any wiring changes
-- Update pin assignments
-- Test new connections
-- Verify compatibility
+3. Upgrades:
+   - Keep firmware updated
+   - Check for component updates
+   - Maintain documentation
