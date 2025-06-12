@@ -29,9 +29,8 @@ services:
       - /sys:/sys:ro
       - /proc:/proc:ro
     devices:
-      # Serial devices for MAVLink/GPS
-      - /dev/ttyUSB0:/dev/ttyUSB0
-      - /dev/ttyAMA0:/dev/ttyAMA0
+      # USB device for Pixhawk 6C
+      - /dev/ttyACM0:/dev/ttyACM0
       # I2C access
       - /dev/i2c-1:/dev/i2c-1
       # SPI access  
@@ -219,32 +218,3 @@ networks:
     name: agrobot-network
     driver: bridge
 
-# Development override
-# Use: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
----
-# docker-compose.dev.yml
-version: '3.8'
-
-services:
-  agrobot-rpi:
-    build:
-      target: builder
-    environment:
-      - ENVIRONMENT=development
-      - DEBUG=true
-      - LOG_LEVEL=DEBUG
-    volumes:
-      - .:/app
-    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    ports:
-      - "8000:8000"
-      - "8001:8001"
-
-  # Override for development - disable privileged mode for safety
-  postgres:
-    environment:
-      POSTGRES_PASSWORD: dev_password
-
-  grafana:
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: dev_password

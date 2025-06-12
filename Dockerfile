@@ -2,7 +2,7 @@
 # Multi-stage build for optimized production image
 
 # Build stage
-FROM python:3.11-slim-bullseye as builder
+FROM python:3.8-slim as builder
 
 # Install system dependencies for building
 RUN apt-get update && apt-get install -y \
@@ -12,6 +12,11 @@ RUN apt-get update && apt-get install -y \
     make \
     pkg-config \
     git \
+    libffi-dev \
+    libssl-dev \
+    python3-dev \
+    python3-serial \
+    python3-gpiozero \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -27,7 +32,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Production stage
-FROM python:3.11-slim-bullseye as production
+FROM python:3.8-slim as production
 
 # Install runtime system dependencies
 RUN apt-get update && apt-get install -y \
@@ -73,6 +78,11 @@ RUN mkdir -p logs data config/local backups temp \
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV ENVIRONMENT=production
+ENV MAVLINK_CONNECTION=/dev/ttyACM0
+ENV MAVLINK_BAUD=57600
+ENV GPS_ENABLED=true
+ENV RC_ENABLED=true
+ENV BACKEND_URL=http://your-backend-url
 
 # Expose ports
 EXPOSE 8000
@@ -86,7 +96,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 USER agrobot
 
 # Default command
-CMD ["python", "main.py"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Alternative commands for different use cases:
 # Development: docker run --env ENVIRONMENT=development agrobot-rpi

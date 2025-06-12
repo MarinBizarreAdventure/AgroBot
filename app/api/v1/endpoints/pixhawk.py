@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from typing import Dict, Any, Optional
 import logging
 
-from app.core.mavlink.connection import MAVLinkManager
+from app.core.mavlink.connection import MAVLinkManager, MavlinkConnection
 from app.models.pixhawk import (
     PixhawkStatus, FlightMode, ArmRequest, ModeRequest,
     CommandResponse, ParameterRequest, ParameterResponse
@@ -16,6 +16,7 @@ from main import get_mavlink_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/pixhawk", tags=["Pixhawk Control"])
+mavlink = MavlinkConnection()
 
 
 @router.get("/status", response_model=PixhawkStatus)
@@ -389,3 +390,28 @@ async def get_capabilities() -> Dict[str, Any]:
             "geofencing": True
         }
     }
+
+@router.post("/connect")
+async def connect():
+    if mavlink.connect():
+        return {"status": "connected"}
+    raise HTTPException(status_code=500, detail="Failed to connect to Pixhawk")
+
+@router.post("/arm")
+async def arm():
+    if mavlink.send_command("arm"):
+        return {"status": "armed"}
+    raise HTTPException(status_code=500, detail="Failed to arm")
+
+@router.post("/disarm")
+async def disarm():
+    if mavlink.send_command("disarm"):
+        return {"status": "disarmed"}
+    raise HTTPException(status_code=500, detail="Failed to disarm")
+
+@router.get("/status")
+async def status():
+    telemetry = mavlink.read_telemetry()
+    if telemetry:
+        return {"status": "connected", "telemetry": telemetry}
+    raise HTTPException(status_code=500, detail="Failed to read telemetry")

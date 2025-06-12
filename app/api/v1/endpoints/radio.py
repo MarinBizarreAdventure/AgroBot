@@ -15,9 +15,13 @@ from app.models.radio import (
 from app.models.pixhawk import CommandResponse
 from config.settings import get_settings
 from main import get_mavlink_manager
+from app.core.radio.receiver import Receiver
+from app.core.radio.failsafe import FailsafeManager
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+receiver = Receiver()
+failsafe = FailsafeManager()
 
 # Store RC channel data and settings
 rc_channel_data: Dict[int, int] = {}  # Channel number -> PWM value
@@ -572,3 +576,22 @@ def update_rc_channels(channel_data: Dict[int, int]):
     if failsafe_triggered and time.time() - last_rc_update < 1.0:
         failsafe_triggered = False
         logger.info("RC failsafe automatically cleared - signal restored")
+
+
+@router.get("/status")
+async def radio_status():
+    channels = receiver.get_all_channels()
+    signal_lost = failsafe.signal_lost
+    return {"status": "connected", "channels": channels, "signal_lost": signal_lost}
+
+
+@router.get("/channels")
+async def get_channels():
+    channels = receiver.get_all_channels()
+    return {"channels": channels}
+
+
+@router.post("/failsafe")
+async def configure_failsafe(threshold: float):
+    failsafe.update_signal(threshold)
+    return {"status": "failsafe configured", "threshold": threshold}

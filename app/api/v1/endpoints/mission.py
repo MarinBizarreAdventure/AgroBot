@@ -19,9 +19,11 @@ from app.models.movement import (
 from app.models.pixhawk import CommandResponse
 from config.settings import get_settings
 from main import get_mavlink_manager
+from app.services.mission_service import MissionService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+mission_service = MissionService()
 
 # Store active missions and execution state
 active_missions: Dict[str, Dict[str, Any]] = {}
@@ -35,124 +37,22 @@ mission_execution_state: Dict[str, Any] = {
 }
 
 
-@router.post("/create", response_model=MissionResponse)
-async def create_mission(
-    request: MissionRequest,
-    mavlink: MAVLinkManager = Depends(get_mavlink_manager)
-) -> MissionResponse:
-    """
-    Create a new mission with waypoints
-    
-    Creates a mission plan with specified waypoints that can be executed later.
-    """
-    try:
-        settings = get_settings()
-        
-        # Validate mission
-        if len(request.waypoints) == 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Mission must have at least one waypoint"
-            )
-        
-        if len(request.waypoints) > settings.MAX_WAYPOINTS:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Mission exceeds maximum waypoints ({settings.MAX_WAYPOINTS})"
-            )
-        
-        # Calculate mission statistics
-        total_distance = 0.0
-        estimated_time = 0.0
-        
-        if len(request.waypoints) > 1:
-            for i in range(1, len(request.waypoints)):
-                prev = request.waypoints[i-1]
-                curr = request.waypoints[i]
-                
-                distance = calculate_distance(
-                    prev.latitude, prev.longitude,
-                    curr.latitude, curr.longitude
-                )
-                total_distance += distance
-                
-                # Estimate time based on speed
-                speed = request.default_speed or settings.MAX_SPEED
-                estimated_time += distance / speed
-        
-        # Generate mission ID
-        mission_id = f"mission_{len(active_missions) + 1}_{int(time.time())}"
-        
-        # Store mission
-        mission_data = {
-            "id": mission_id,
-            "name": request.name,
-            "description": request.description,
-            "waypoints": [wp.dict() for wp in request.waypoints],
-            "default_speed": request.default_speed or settings.MAX_SPEED,
-            "auto_continue": request.auto_continue,
-            "return_to_launch": request.return_to_launch,
-            "total_distance": total_distance,
-            "estimated_time": estimated_time,
-            "created_at": time.time(),
-            "status": "created"
-        }
-        
-        active_missions[mission_id] = mission_data
-        
-        return MissionResponse(
-            success=True,
-            message=f"Mission '{request.name}' created successfully",
-            mission_id=mission_id,
-            waypoint_count=len(request.waypoints),
-            total_distance_meters=total_distance,
-            estimated_duration_seconds=estimated_time,
-            mission_data=mission_data
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating mission: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Mission creation error: {str(e)}"
-        )
+@router.post("/create")
+async def create_mission(waypoints: list):
+    mission = mission_service.create_mission(waypoints)
+    return {"status": "created", "mission": mission}
+
+
+@router.post("/execute")
+async def execute_mission():
+    mission = mission_service.execute_mission()
+    return {"status": "executing", "mission": mission}
 
 
 @router.get("/list")
-async def list_missions() -> Dict[str, Any]:
-    """
-    List all created missions
-    
-    Returns a list of all missions with their basic information.
-    """
-    try:
-        mission_list = []
-        for mission_id, mission_data in active_missions.items():
-            mission_summary = {
-                "id": mission_id,
-                "name": mission_data["name"],
-                "description": mission_data["description"],
-                "waypoint_count": len(mission_data["waypoints"]),
-                "total_distance": mission_data["total_distance"],
-                "estimated_time": mission_data["estimated_time"],
-                "status": mission_data["status"],
-                "created_at": mission_data["created_at"]
-            }
-            mission_list.append(mission_summary)
-        
-        return {
-            "missions": mission_list,
-            "total_count": len(mission_list)
-        }
-        
-    except Exception as e:
-        logger.error(f"Error listing missions: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Mission list error: {str(e)}"
-        )
+async def list_missions():
+    mission = mission_service.get_current_mission()
+    return {"status": "success", "mission": mission}
 
 
 @router.get("/{mission_id}", response_model=MissionResponse)

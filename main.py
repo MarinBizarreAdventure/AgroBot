@@ -15,7 +15,7 @@ import logging
 from config.settings import get_settings
 from config.logging import setup_logging
 from app.api.v1.api import api_router
-from app.core.mavlink.connection import MAVLinkManager
+from app.core.mavlink.connection import MAVLinkManager, MavlinkConnection
 from app.services.telemetry_service import TelemetryService
 from app.websocket.manager import WebSocketManager
 
@@ -74,21 +74,21 @@ def create_app() -> FastAPI:
     settings = get_settings()
     
     app = FastAPI(
-        title="AgroBot Raspberry Pi Controller",
-        description="FastAPI application for controlling agro robot via Pixhawk flight controller",
+        title="AgroBot API",
+        description="API for controlling and monitoring the AgroBot system",
         version="1.0.0",
-        openapi_url="/api/v1/openapi.json",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs",  # Swagger UI
+        redoc_url="/redoc",  # ReDoc UI
+        openapi_url="/openapi.json",  # OpenAPI schema
         lifespan=lifespan
     )
     
-    # CORS middleware
+    # Configure CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.ALLOWED_HOSTS,
+        allow_origins=["*"],  # In production, replace with specific origins
         allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
+        allow_methods=["*"],
         allow_headers=["*"],
     )
     
@@ -131,6 +131,14 @@ def create_app() -> FastAPI:
             "docs": "/docs",
             "health": "/health"
         }
+    
+    @app.on_event("startup")
+    async def startup_event():
+        mavlink_manager.connect()
+
+    @app.on_event("shutdown")
+    async def shutdown_event():
+        mavlink_manager.disconnect()
     
     return app
 

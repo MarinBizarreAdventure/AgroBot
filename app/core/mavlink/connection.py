@@ -8,6 +8,7 @@ import time
 from typing import Optional, Dict, Any, Callable
 from dataclasses import dataclass
 from enum import Enum
+import serial
 
 try:
     from pymavlink import mavutil
@@ -99,6 +100,8 @@ class MAVLinkManager:
         # Connection monitoring
         self.connection_timeout = self.settings.MAVLINK_TIMEOUT
         self.heartbeat_timeout = 5.0  # seconds
+        
+        self.serial = None
     
     async def connect(self) -> bool:
         """Establish MAVLink connection"""
@@ -159,6 +162,10 @@ class MAVLinkManager:
         
         self.state = ConnectionState.DISCONNECTED
         logger.info("Disconnected from MAVLink")
+        
+        if self.serial:
+            self.serial.close()
+            self.serial = None
     
     def is_connected(self) -> bool:
         """Check if connected to MAVLink"""
@@ -380,3 +387,23 @@ class MAVLinkManager:
             "latest_gps": self.latest_gps.__dict__ if self.latest_gps else None,
             "latest_attitude": self.latest_attitude.__dict__ if self.latest_attitude else None
         }
+
+    def connect_serial(self):
+        try:
+            self.serial = serial.Serial(self.connection_string, self.baud_rate, timeout=1)
+            print(f"Connected to Pixhawk on {self.connection_string}")
+            return True
+        except Exception as e:
+            print(f"Failed to connect: {e}")
+            return False
+
+    def send_command(self, command):
+        if self.serial:
+            self.serial.write(command.encode())
+            return True
+        return False
+
+    def read_telemetry(self):
+        if self.serial and self.serial.in_waiting:
+            return self.serial.readline().decode().strip()
+        return None

@@ -17,12 +17,14 @@ from app.models.backend import (
 from app.models.pixhawk import CommandResponse
 from config.settings import get_settings
 from main import get_mavlink_manager
+from app.services.backend_service import BackendService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Global backend client instance
 backend_client: Optional[BackendClient] = None
+backend_service = BackendService()
 
 
 @router.on_event("startup")
@@ -572,3 +574,15 @@ def read_log_files(start_time: Optional[float], end_time: Optional[float], level
     ]
     
     return logs
+
+
+@router.post("/sync")
+async def sync_data(data: dict):
+    result = backend_service.sync_data(data)
+    return {"status": "synced", "result": result}
+
+
+@router.post("/status")
+async def update_status(status: str):
+    result = backend_service.update_status(status)
+    return {"status": "updated", "result": result}
