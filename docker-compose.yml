@@ -11,11 +11,13 @@ services:
     environment:
       - ENVIRONMENT=production
       - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
       - LOG_LEVEL=INFO
+      - TZ=UTC
     env_file:
       - .env
     volumes:
-      # Configuration
+      # Configuration and data persistence
       - ./config:/app/config:ro
       - ./logs:/app/logs
       - ./data:/app/data
@@ -23,6 +25,7 @@ services:
       - /dev:/dev
       - /sys:/sys:ro
       - /proc:/proc:ro
+      - /run/udev:/run/udev:ro  # For device management
     devices:
       # USB device for Pixhawk
       - /dev/ttyACM0:/dev/ttyACM0
@@ -44,6 +47,14 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
   # Redis for caching and message queuing
   redis:
@@ -64,6 +75,14 @@ services:
       options:
         max-size: "5m"
         max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
 
 volumes:
   redis_data:

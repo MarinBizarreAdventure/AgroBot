@@ -5,12 +5,13 @@ Main entry point for the Raspberry Pi controller application
 """
 
 import uvicorn
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
+import asyncio
 
 from config.settings import get_settings
 from config.logging import setup_logging
@@ -39,34 +40,40 @@ async def lifespan(app: FastAPI):
     global mavlink_manager, telemetry_service
     settings = get_settings()
     
-    mavlink_manager = MAVLinkManager(
-        connection_string=settings.MAVLINK_CONNECTION_STRING,
-        baud_rate=settings.MAVLINK_BAUD_RATE
-    )
-    
-    # Initialize telemetry service
-    telemetry_service = TelemetryService(mavlink_manager, websocket_manager)
-    
-    # Start MAVLink connection
-    if settings.AUTO_CONNECT_MAVLINK:
-        try:
-            await mavlink_manager.connect()
-            logger.info("MAVLink connection established")
-            
-            # Start telemetry service
-            await telemetry_service.start()
-            logger.info("Telemetry service started")
-        except Exception as e:
-            logger.error(f"Failed to connect to Pixhawk: {e}")
+    try:
+        mavlink_manager = MAVLinkManager(
+            connection_string=settings.MAVLINK_CONNECTION_STRING,
+            baud_rate=settings.MAVLINK_BAUD_RATE
+        )
+        
+        # Initialize telemetry service
+        telemetry_service = TelemetryService(mavlink_manager, websocket_manager)
+        
+        # Start MAVLink connection
+        if settings.AUTO_CONNECT_MAVLINK:
+            try:
+                await mavlink_manager.connect()
+                logger.info("MAVLink connection established")
+                
+                # Start telemetry service
+                await telemetry_service.start()
+                logger.info("Telemetry service started")
+            except Exception as e:
+                logger.error(f"Failed to connect to Pixhawk: {e}")
+    except Exception as e:
+        logger.error(f"Failed to initialize services: {e}")
     
     yield
     
     # Shutdown
     logger.info("Shutting down AgroBot Raspberry Pi Application")
-    if telemetry_service:
-        await telemetry_service.stop()
-    if mavlink_manager:
-        await mavlink_manager.disconnect()
+    try:
+        if telemetry_service:
+            await telemetry_service.stop()
+        if mavlink_manager:
+            await mavlink_manager.disconnect()
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
 
 
 def create_app() -> FastAPI:
@@ -86,7 +93,7 @@ def create_app() -> FastAPI:
     # Configure CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # In production, replace with specific origins
+        allow_origins=settings.ALLOWED_HOSTS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -97,15 +104,19 @@ def create_app() -> FastAPI:
     
     # WebSocket endpoint
     @app.websocket("/ws")
-    async def websocket_endpoint(websocket):
+    async def websocket_endpoint(websocket: WebSocket):
         await websocket_manager.connect(websocket)
         try:
             while True:
-                data = await websocket.receive_text()
-                # Handle incoming WebSocket messages if needed
-                await websocket_manager.send_personal_message(f"Echo: {data}", websocket)
-        except Exception as e:
-            logger.error(f"WebSocket error: {e}")
+                try:
+                    data = await websocket.receive_text()
+                    # Handle incoming WebSocket messages if needed
+                    await websocket_manager.send_personal_message(f"Echo: {data}", websocket)
+                except WebSocketDisconnect:
+                    break
+                except Exception as e:
+                    logger.error(f"WebSocket error: {e}")
+                    break
         finally:
             websocket_manager.disconnect(websocket)
     
@@ -113,32 +124,29 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health_check():
         """Simple health check endpoint"""
-        status = {
-            "status": "healthy",
-            "mavlink_connected": mavlink_manager.is_connected() if mavlink_manager else False,
-            "telemetry_active": telemetry_service.is_running() if telemetry_service else False
-        }
-        return status
+        try:
+            status = {
+                "status": "healthy",
+                "mavlink_connected": mavlink_manager.is_connected() if mavlink_manager else False,
+                "telemetry_active": telemetry_service.is_running() if telemetry_service else False,
+                "websocket_connections": len(websocket_manager.active_connections)
+            }
+            return status
+        except Exception as e:
+            logger.error(f"Health check error: {e}")
+            return {"status": "unhealthy", "error": str(e)}
     
     # Root endpoint
     @app.get("/")
     async def root():
         """Root endpoint with application information"""
         return {
-            "name": "AgroBot Raspberry Pi Controller",
-            "version": "1.0.0",
+            "name": settings.APP_NAME,
+            "version": settings.VERSION,
             "description": "FastAPI application for agro robot control",
             "docs": "/docs",
             "health": "/health"
         }
-    
-    @app.on_event("startup")
-    async def startup_event():
-        mavlink_manager.connect()
-
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        mavlink_manager.disconnect()
     
     return app
 
@@ -172,5 +180,6 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
-        log_level="info" if not settings.DEBUG else "debug"
+        log_level="info" if not settings.DEBUG else "debug",
+        workers=1  # Single worker for better stability
     )
