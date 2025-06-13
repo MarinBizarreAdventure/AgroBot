@@ -8,81 +8,30 @@ services:
       dockerfile: Dockerfile
     container_name: agrobot-rpi-controller
     restart: unless-stopped
-    environment:
-      - ENVIRONMENT=production
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=INFO
-      - TZ=UTC
-    env_file:
-      - .env
     volumes:
-      # Configuration and data persistence
       - ./config:/app/config:ro
       - ./logs:/app/logs
       - ./data:/app/data
-      # Hardware access (Raspberry Pi specific)
       - /dev:/dev
       - /sys:/sys:ro
       - /proc:/proc:ro
-      - /run/udev:/run/udev:ro  # For device management
     devices:
-      # USB device for Pixhawk
       - /dev/ttyACM0:/dev/ttyACM0
-      # I2C access
       - /dev/i2c-1:/dev/i2c-1
-      # SPI access  
       - /dev/spidev0.0:/dev/spidev0.0
       - /dev/spidev0.1:/dev/spidev0.1
-    privileged: true  # Required for GPIO access on Raspberry Pi
-    network_mode: host  # Required for proper hardware communication
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 128M
+    privileged: true
+    network_mode: host
 
   # Redis for caching and message queuing
   redis:
     image: redis:7-alpine
     container_name: agrobot-redis
     restart: unless-stopped
-    network_mode: host  # Use host network mode for Redis as well
+    network_mode: host
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "3"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
+    command: redis-server --appendonly yes
 
 volumes:
   redis_data:
