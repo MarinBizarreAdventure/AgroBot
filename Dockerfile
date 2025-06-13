@@ -18,6 +18,9 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
+# Set Python path
+ENV PYTHONPATH=/app
+
 # Copy requirements first
 COPY requirements.txt .
 
@@ -35,7 +38,7 @@ EXPOSE 8000
 EXPOSE 8001
 
 # Default command
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["python3", "-m", "uvicorn", "test_app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
 
 # Alternative commands for different use cases:
 # Development: docker run --env ENVIRONMENT=development agrobot-rpi
