@@ -14,9 +14,6 @@ services:
       - LOG_LEVEL=INFO
     env_file:
       - .env
-    ports:
-      - "8000:8000"  # HTTP API
-      - "8001:8001"  # WebSocket
     volumes:
       # Configuration
       - ./config:/app/config:ro
@@ -53,8 +50,7 @@ services:
     image: redis:7-alpine
     container_name: agrobot-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    network_mode: host  # Use host network mode for Redis as well
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
