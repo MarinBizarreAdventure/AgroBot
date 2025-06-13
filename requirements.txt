@@ -17,7 +17,7 @@ dill==0.3.6
 distro==1.8.0
 docutils==0.19
 Flask==2.2.2
-gpiozero==2.0.1
+gpiozero==2.0
 html5lib==1.1
 idna==3.3
 importlib-metadata==4.12.0

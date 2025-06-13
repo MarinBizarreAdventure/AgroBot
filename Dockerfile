@@ -20,6 +20,10 @@ RUN apt-get update && apt-get install -y \
     python3-cups \
     cups \
     cups-client \
+    python3-rpi.gpio \
+    python3-pigpio \
+    python3-spidev \
+    python3-smbus \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -46,6 +50,10 @@ RUN apt-get update && apt-get install -y \
     htop \
     # Hardware access
     i2c-tools \
+    python3-rpi.gpio \
+    python3-pigpio \
+    python3-spidev \
+    python3-smbus \
     # Network utilities
     net-tools \
     iputils-ping \
