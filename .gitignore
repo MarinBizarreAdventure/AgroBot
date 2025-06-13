@@ -128,8 +128,7 @@ temp/
 *~
 
 # Configuration files with secrets
-.env.local
-.env.production
+
 config/local/
 secrets/
 
@@ -192,3 +191,58 @@ $RECYCLE.BIN/
 *.xml
 !config/examples/*.json
 !docs/*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Local development
+
+
+# Keep these .env files
+
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Database
+*.sqlite3
+*.db
+
+# System
+.DS_Store
+Thumbs.db
