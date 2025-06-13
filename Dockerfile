@@ -17,6 +17,9 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     python3-serial \
     python3-gpiozero \
+    python3-cups \
+    cups \
+    cups-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -53,6 +56,10 @@ RUN apt-get update && apt-get install -y \
     gpsd-clients \
     # Camera support (if needed)
     v4l-utils \
+    # CUPS support
+    python3-cups \
+    cups \
+    cups-client \
     # Cleanup
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
