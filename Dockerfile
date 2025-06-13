@@ -33,8 +33,19 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
     zlib1g-dev \
     libopenjp2-7 \
-    libtiff5 \
-    && rm -rf /var/lib/apt/lists/*
+    libtiff-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Verify installations
+RUN python3 -c "import serial; print('pyserial installed')" \
+    && python3 -c "import gpiozero; print('gpiozero installed')" \
+    && python3 -c "import RPi.GPIO; print('RPi.GPIO installed')" \
+    && python3 -c "import pigpio; print('pigpio installed')" \
+    && python3 -c "import spidev; print('spidev installed')" \
+    && python3 -c "import smbus; print('smbus installed')" \
+    && i2cdetect -V \
+    && curl --version
 
 # Set working directory
 WORKDIR /app
@@ -49,7 +60,16 @@ COPY --chown=appuser:appuser requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip cache purge
+
+# Verify Python package installations
+RUN python3 -c "import fastapi; print('FastAPI installed')" \
+    && python3 -c "import uvicorn; print('Uvicorn installed')" \
+    && python3 -c "import pymavlink; print('pymavlink installed')" \
+    && python3 -c "import redis; print('redis installed')" \
+    && python3 -c "import psutil; print('psutil installed')" \
+    && python3 -c "import structlog; print('structlog installed')"
 
 # Copy application code
 COPY --chown=appuser:appuser . .
