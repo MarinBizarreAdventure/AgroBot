@@ -20,7 +20,7 @@ from app.models.backend import (
     AlertRequest, AlertResponse,
     HardwareInfo, Capability, Location, QuickHealth, BackendCommand
 )
-from config.settings import settings
+from config.settings import get_settings
 from app.core.mavlink.connection import MAVLinkManager # Assuming this is the source of GPS and MAVLink status
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,8 @@ def get_local_ip():
 
 class BackendService:
     def __init__(self, mavlink_manager: MAVLinkManager):
-        self.backend_client = BackendClient(base_url=settings.BACKEND_URL, api_key=settings.BACKEND_API_KEY)
+        settings = get_settings()
+        self.backend_client = BackendClient(base_url=settings.AGROBOT_BACKEND_URL, api_key=settings.AGROBOT_API_KEY)
         self.mavlink_manager = mavlink_manager
         self.robot_id = settings.ROBOT_ID
         self.registered = False
