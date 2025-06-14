@@ -15,7 +15,7 @@ import asyncio
 
 from config.settings import get_settings
 from config.logging import setup_logging
-from app.core.mavlink.connection import MAVLinkManager, MavlinkConnection
+from app.core.mavlink.connection import MAVLinkManager
 from app.services.telemetry_service import TelemetryService
 from app.websocket.manager import WebSocketManager
 
