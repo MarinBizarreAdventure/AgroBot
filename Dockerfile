@@ -37,6 +37,8 @@ RUN mkdir -p logs data config/local
 EXPOSE 8000
 EXPOSE 8001
 
+RUN ls -l /app
+
 # Default command
 CMD ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
 
