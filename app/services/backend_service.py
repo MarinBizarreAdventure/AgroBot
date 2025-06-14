@@ -9,6 +9,7 @@ import psutil
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import uuid
+import socket
 
 from app.core.backend.client import BackendClient
 from app.models.backend import (
@@ -23,6 +24,19 @@ from config.settings import settings
 from app.core.mavlink.connection import MAVLinkManager # Assuming this is the source of GPS and MAVLink status
 
 logger = logging.getLogger(__name__)
+
+def get_local_ip():
+    """Attempts to get the local IP address of the machine."""
+    try:
+        # Connect to a dummy external address to find the interface's IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception as e:
+        logger.warning(f"Could not determine local IP address: {e}. Defaulting to localhost.")
+        return "127.0.0.1"
 
 class BackendService:
     def __init__(self, mavlink_manager: MAVLinkManager):
@@ -56,7 +70,7 @@ class BackendService:
             Capability(name="GPS", supported=True, details={"accuracy": "high"}),
             Capability(name="Arming", supported=True),
             Capability(name="Movement", supported=True, details={"modes": ["goto", "velocity"]}),
-            Capability(name="MissionPlanning", supported=False), # Example of unsupported
+            Capability(name="MissionPlanning", supported=True), 
             Capability(name="Telemetry", supported=True, details={"frequency": "configurable"})
         ]
 
@@ -88,25 +102,31 @@ class BackendService:
 
     async def register_robot_with_retry(self):
         attempt = 0
-        max_attempts = settings.MAX_RECONNECT_ATTEMPTS # From .env
-        base_delay = settings.RECONNECT_DELAY # From .env
+        max_attempts = settings.MAX_RECONNECT_ATTEMPTS
+        base_delay = settings.RECONNECT_DELAY
+
+        robot_ip = get_local_ip()
+        robot_port = settings.PORT
 
         while not self.registered and not self.stop_event.is_set():
             attempt += 1
-            delay = min(base_delay * (2 ** (attempt - 1)), 300) # Cap delay at 5 minutes
-            logger.info(f"Attempting to register robot (Attempt {attempt}/{max_attempts})...")
+            delay = min(base_delay * (2 ** (attempt - 1)), 300)
+            logger.info(f"Attempting to register robot {self.robot_id} at {robot_ip}:{robot_port} (Attempt {attempt}/{max_attempts})...")
             
             try:
-                hardware_info = await self._get_hardware_info()
                 capabilities = await self._get_robot_capabilities()
                 current_location = await self._get_current_location()
 
                 register_request = RegisterRequest(
                     robot_id=self.robot_id,
-                    hardware_info=hardware_info,
+                    robot_name=settings.ROBOT_NAME,
+                    version=settings.VERSION,
+                    robot_ip_address=robot_ip,
+                    robot_port=robot_port,
                     capabilities=capabilities,
                     location=current_location,
-                    software_version="1.0.0" # You might get this from __version__ or env var
+                    software_version=settings.VERSION,
+                    metadata={}
                 )
                 response = await self.backend_client.register_robot(register_request)
 
@@ -121,7 +141,6 @@ class BackendService:
             
             if attempt >= max_attempts:
                 logger.error(f"Max registration attempts ({max_attempts}) reached. Cannot connect to backend.")
-                # Consider entering offline mode or alerting administrator here
                 break
             
             await asyncio.sleep(delay)

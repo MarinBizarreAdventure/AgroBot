@@ -434,29 +434,31 @@ class Location(BaseModel):
 # Registration Models
 class RegisterRequest(BaseModel):
     robot_id: str = Field(..., description="Unique ID of the Raspberry Pi robot")
-    hardware_info: HardwareInfo = Field(..., description="Detailed hardware specifications")
+    robot_name: str = Field(..., description="Name of the robot")
+    version: str = Field(..., description="Current software version of the controller")
+    robot_ip_address: str = Field(..., description="Robot's IP address")
+    robot_port: int = Field(..., description="Robot's port")
     capabilities: List[Capability] = Field(..., description="List of capabilities supported by the robot")
     location: Optional[Location] = Field(None, description="Current location of the robot")
     software_version: str = Field(..., description="Current software version of the controller")
+    metadata: dict = {}
     
     class Config:
         schema_extra = {
             "example": {
                 "robot_id": "agrobot-rpi-001",
-                "hardware_info": {
-                    "cpu_model": "Raspberry Pi 4 Model B Rev 1.4",
-                    "ram_gb": 4.0,
-                    "disk_gb": 32.0,
-                    "serial_number": "00000000abcdef12",
-                    "camera_present": True
-                },
+                "robot_name": "AG Robot",
+                "version": "1.0.0",
+                "robot_ip_address": "192.168.1.100",
+                "robot_port": 5000,
                 "capabilities": [
                     {"name": "GPS", "supported": True},
                     {"name": "Arming", "supported": True},
                     {"name": "MissionPlanning", "supported": False}
                 ],
                 "location": {"latitude": 45.123, "longitude": -122.456, "altitude": 10.0},
-                "software_version": "1.0.0"
+                "software_version": "1.0.0",
+                "metadata": {}
             }
         }
 
