@@ -291,8 +291,8 @@ class MAVLinkManager:
             relative_alt=msg.relative_alt,
             hdop=getattr(msg, 'hdop', 0) / 100.0,  # Use getattr with default 0
             vdop=getattr(msg, 'vdop', 0) / 100.0,  # Use getattr with default 0
-            vel=msg.vel,
-            cog=msg.cog,
+            vel=getattr(msg, 'vel', 0.0),
+            cog=getattr(msg, 'cog', 0),
             satellites_visible=getattr(msg, 'satellites_visible', 0),
             fix_type=getattr(msg, 'fix_type', 0)
         )
