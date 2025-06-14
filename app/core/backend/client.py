@@ -5,7 +5,7 @@ BackendClient for communicating with the central AgroBot Backend Server.
 import httpx
 import asyncio
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from app.models.backend import (
     RegisterRequest, RegisterResponse,
@@ -14,15 +14,15 @@ from app.models.backend import (
     TelemetryBatchRequest, TelemetryBatchResponse,
     AlertRequest, AlertResponse
 )
-from config.settings import settings # Assuming settings are accessible
+from config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
 class BackendClient:
-    def __init__(self, base_url: str, api_key: str):
+    def __init__(self, base_url: str, api_key: Optional[str] = None):
         self.base_url = base_url
         self.api_key = api_key
-        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=10.0) # 10-second timeout
+        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=get_settings().BACKEND_TIMEOUT)
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
