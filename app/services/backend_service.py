@@ -76,12 +76,12 @@ class BackendService:
         ]
 
     async def _get_current_location(self) -> Optional[Location]:
-        gps_data = await self.mavlink_manager.get_gps_data()
-        if gps_data and gps_data.fix_type > 0 and gps_data.latitude != 0 and gps_data.longitude != 0:
+        gps_data = self.mavlink_manager.latest_gps
+        if gps_data and gps_data.fix_type > 0 and gps_data.lat != 0 and gps_data.lon != 0:
             return Location(
-                latitude=gps_data.latitude,
-                longitude=gps_data.longitude,
-                altitude=gps_data.altitude,
+                latitude=gps_data.lat / 1e7, # Convert from degrees * 1e7 to degrees
+                longitude=gps_data.lon / 1e7, # Convert from degrees * 1e7 to degrees
+                altitude=gps_data.alt / 1000.0, # Convert from mm to meters
                 timestamp=datetime.now()
             )
         return None
@@ -91,7 +91,7 @@ class BackendService:
         memory_percent = psutil.virtual_memory().percent
         disk_percent = psutil.disk_usage('/').percent
         mavlink_connected = self.mavlink_manager.is_connected()
-        gps_data = await self.mavlink_manager.get_gps_data()
+        gps_data = self.mavlink_manager.latest_gps
         gps_fix = gps_data.fix_type > 0 if gps_data else False
         return QuickHealth(
             cpu_percent=cpu_percent,
