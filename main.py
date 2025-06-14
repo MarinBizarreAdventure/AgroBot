@@ -12,12 +12,17 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import logging
 import asyncio
+from typing import Optional
+import uuid
+from datetime import datetime
+import psutil
 
 from config.settings import get_settings
 from config.logging import setup_logging
 from app.core.mavlink.connection import MAVLinkManager
 from app.services.telemetry_service import TelemetryService
 from app.websocket.manager import WebSocketManager
+from app.services.backend_service import BackendService
 
 # Initialize logging
 setup_logging()
@@ -27,6 +32,7 @@ logger = logging.getLogger(__name__)
 mavlink_manager = None
 telemetry_service = None
 websocket_manager = WebSocketManager()
+backend_service: Optional[BackendService] = None
 
 
 @asynccontextmanager
@@ -36,7 +42,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting AgroBot Raspberry Pi Application")
     
     # Initialize MAVLink connection
-    global mavlink_manager, telemetry_service
+    global mavlink_manager, telemetry_service, backend_service
     settings = get_settings()
     
     try:
@@ -47,6 +53,9 @@ async def lifespan(app: FastAPI):
         
         # Initialize telemetry service
         telemetry_service = TelemetryService(mavlink_manager, websocket_manager)
+
+        # Initialize backend service
+        backend_service = BackendService(mavlink_manager)
         
         # Start MAVLink connection
         if settings.AUTO_CONNECT_MAVLINK:
@@ -59,6 +68,11 @@ async def lifespan(app: FastAPI):
                 logger.info("Telemetry service started")
             except Exception as e:
                 logger.error(f"Failed to connect to Pixhawk: {e}")
+        
+        # Start backend service tasks (registration, heartbeat, etc.)
+        await backend_service.startup()
+        logger.info("Backend service started")
+
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
     
@@ -67,6 +81,8 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("Shutting down AgroBot Raspberry Pi Application")
     try:
+        if backend_service:
+            await backend_service.shutdown()
         if telemetry_service:
             await telemetry_service.stop()
         if mavlink_manager:
@@ -176,22 +192,89 @@ def create_app() -> FastAPI:
                 return {"error": "MAVLink manager not initialized"}
             if not mavlink_manager.is_connected():
                 return {"error": "Not connected to Pixhawk"}
+            
             success = await mavlink_manager.arm_motors(arm)
+            
+            # Report to backend
+            if backend_service:
+                await backend_service.report_command_result(
+                    command_id=str(uuid.uuid4()), # Generate a unique command ID
+                    status="completed" if success else "failed",
+                    result={"armed": arm} if success else None,
+                    error="Failed to arm/disarm motors" if not success else None,
+                    execution_time=None # You could measure this for more accuracy
+                )
+            
             return {"success": success, "armed": arm}
         except Exception as e:
             logger.error(f"Pixhawk arm error: {e}")
+            
+            # Report error to backend if service is available
+            if backend_service:
+                await backend_service.report_command_result(
+                    command_id=str(uuid.uuid4()),
+                    status="failed",
+                    error=str(e),
+                    execution_time=None
+                )
+
             return {"error": str(e)}
 
     @app.post("/api/v1/pixhawk/mode")
     async def pixhawk_mode(mode: str):
+        command_id = str(uuid.uuid4())
         try:
             if not mavlink_manager or not mavlink_manager.is_connected():
-                return {"error": "Not connected to Pixhawk"}
+                error_msg = "Not connected to Pixhawk"
+                if backend_service:
+                    await backend_service.report_command_result(
+                        command_id=command_id,
+                        status="failed",
+                        error=error_msg
+                    )
+                return {"error": error_msg}
+
+            # Validate mode
+            valid_modes = ["STABILIZE", "GUIDED", "AUTO", "RTL", "LOITER", "LAND"]
+            if mode.upper() not in valid_modes:
+                error_msg = f"Invalid mode. Must be one of: {', '.join(valid_modes)}"
+                if backend_service:
+                    await backend_service.report_command_result(
+                        command_id=command_id,
+                        status="failed",
+                        error=error_msg
+                    )
+                return {"error": error_msg}
+
             success = await mavlink_manager.set_mode(mode)
-            return {"success": success, "mode": mode}
+            
+            # Report to backend
+            if backend_service:
+                await backend_service.report_command_result(
+                    command_id=command_id,
+                    status="completed" if success else "failed",
+                    result={"mode": mode} if success else None,
+                    error="Failed to set flight mode" if not success else None
+                )
+
+            return {
+                "success": success,
+                "command_id": command_id,
+                "mode": mode
+            }
+
         except Exception as e:
             logger.error(f"Pixhawk mode error: {e}")
-            return {"error": str(e)}
+            
+            # Report error to backend
+            if backend_service:
+                await backend_service.report_command_result(
+                    command_id=command_id,
+                    status="failed",
+                    error=str(e)
+                )
+
+            return {"error": str(e), "command_id": command_id}
 
     # GPS endpoints
     @app.get("/api/v1/gps/current")
@@ -238,24 +321,201 @@ def create_app() -> FastAPI:
     # Movement endpoint
     @app.post("/api/v1/movement/goto")
     async def movement_goto(latitude: float, longitude: float, altitude: float):
+        command_id = str(uuid.uuid4())
         try:
             if not mavlink_manager or not mavlink_manager.is_connected():
-                return {"error": "Not connected to Pixhawk"}
-            # This is a placeholder for actual movement logic
-            return {"success": True, "message": f"Moving to {latitude}, {longitude}, {altitude}"}
+                error_msg = "Not connected to Pixhawk"
+                if backend_service:
+                    await backend_service.report_command_result(
+                        command_id=command_id,
+                        status="failed",
+                        error=error_msg
+                    )
+                return {"error": error_msg}
+
+            # Validate GPS fix
+            gps_data = await mavlink_manager.get_gps_data()
+            if not gps_data or gps_data.fix_type <= 0:
+                error_msg = "No GPS fix available"
+                if backend_service:
+                    await backend_service.report_command_result(
+                        command_id=command_id,
+                        status="failed",
+                        error=error_msg
+                    )
+                return {"error": error_msg}
+
+            # Validate coordinates
+            settings = get_settings()
+            if settings.GEOFENCE_ENABLED:
+                # Calculate distance from current position to target
+                current_lat = gps_data.lat / 1e7
+                current_lon = gps_data.lon / 1e7
+                # Simple distance calculation (you might want to use a more accurate method)
+                distance = ((latitude - current_lat) ** 2 + (longitude - current_lon) ** 2) ** 0.5
+                if distance > settings.GEOFENCE_RADIUS:
+                    error_msg = f"Target location is outside geofence radius ({settings.GEOFENCE_RADIUS}m)"
+                    if backend_service:
+                        await backend_service.report_command_result(
+                            command_id=command_id,
+                            status="failed",
+                            error=error_msg
+                        )
+                    return {"error": error_msg}
+
+            # Execute movement command
+            # This is where you would implement the actual movement logic
+            # For now, we'll just simulate success
+            success = True
+            result = {
+                "target": {
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "altitude": altitude
+                },
+                "current": {
+                    "latitude": current_lat,
+                    "longitude": current_lon,
+                    "altitude": gps_data.alt / 1000.0
+                }
+            }
+
+            # Report to backend
+            if backend_service:
+                await backend_service.report_command_result(
+                    command_id=command_id,
+                    status="completed" if success else "failed",
+                    result=result if success else None,
+                    error=None if success else "Failed to execute movement command"
+                )
+
+            return {
+                "success": success,
+                "command_id": command_id,
+                "message": f"Moving to {latitude}, {longitude}, {altitude}",
+                "result": result
+            }
+
         except Exception as e:
             logger.error(f"Movement goto error: {e}")
-            return {"error": str(e)}
+            
+            # Report error to backend
+            if backend_service:
+                await backend_service.report_command_result(
+                    command_id=command_id,
+                    status="failed",
+                    error=str(e)
+                )
+
+            return {"error": str(e), "command_id": command_id}
 
     # Mission endpoint
     @app.post("/api/v1/mission/create")
     async def mission_create(name: str, description: str = "", waypoints: list = []):
+        command_id = str(uuid.uuid4())
         try:
-            # This is a placeholder for actual mission creation logic
-            return {"success": True, "message": f"Mission '{name}' created", "waypoints": waypoints}
+            if not mavlink_manager or not mavlink_manager.is_connected():
+                error_msg = "Not connected to Pixhawk"
+                if backend_service:
+                    await backend_service.report_command_result(
+                        command_id=command_id,
+                        status="failed",
+                        error=error_msg
+                    )
+                return {"error": error_msg}
+
+            # Validate waypoints
+            settings = get_settings()
+            if len(waypoints) > settings.MAX_WAYPOINTS:
+                error_msg = f"Too many waypoints. Maximum allowed: {settings.MAX_WAYPOINTS}"
+                if backend_service:
+                    await backend_service.report_command_result(
+                        command_id=command_id,
+                        status="failed",
+                        error=error_msg
+                    )
+                return {"error": error_msg}
+
+            # Validate each waypoint
+            for i, wp in enumerate(waypoints):
+                if not isinstance(wp, dict):
+                    error_msg = f"Invalid waypoint format at index {i}"
+                    if backend_service:
+                        await backend_service.report_command_result(
+                            command_id=command_id,
+                            status="failed",
+                            error=error_msg
+                        )
+                    return {"error": error_msg}
+                
+                required_fields = ["latitude", "longitude", "altitude"]
+                missing_fields = [field for field in required_fields if field not in wp]
+                if missing_fields:
+                    error_msg = f"Missing required fields in waypoint {i}: {', '.join(missing_fields)}"
+                    if backend_service:
+                        await backend_service.report_command_result(
+                            command_id=command_id,
+                            status="failed",
+                            error=error_msg
+                        )
+                    return {"error": error_msg}
+
+                # Validate coordinates against geofence if enabled
+                if settings.GEOFENCE_ENABLED:
+                    # Get current position
+                    gps_data = await mavlink_manager.get_gps_data()
+                    if gps_data and gps_data.fix_type > 0:
+                        current_lat = gps_data.lat / 1e7
+                        current_lon = gps_data.lon / 1e7
+                        # Calculate distance
+                        distance = ((wp["latitude"] - current_lat) ** 2 + (wp["longitude"] - current_lon) ** 2) ** 0.5
+                        if distance > settings.GEOFENCE_RADIUS:
+                            error_msg = f"Waypoint {i} is outside geofence radius ({settings.GEOFENCE_RADIUS}m)"
+                            if backend_service:
+                                await backend_service.report_command_result(
+                                    command_id=command_id,
+                                    status="failed",
+                                    error=error_msg
+                                )
+                            return {"error": error_msg}
+
+            # Create mission (placeholder for actual implementation)
+            success = True
+            result = {
+                "mission_name": name,
+                "description": description,
+                "waypoints": waypoints,
+                "created_at": datetime.now().isoformat()
+            }
+
+            # Report to backend
+            if backend_service:
+                await backend_service.report_command_result(
+                    command_id=command_id,
+                    status="completed" if success else "failed",
+                    result=result if success else None,
+                    error="Failed to create mission" if not success else None
+                )
+
+            return {
+                "success": success,
+                "command_id": command_id,
+                "message": f"Mission '{name}' created",
+                "result": result
+            }
+
         except Exception as e:
             logger.error(f"Mission create error: {e}")
-            return {"error": str(e)}
+            
+            # Report error to backend
+            if backend_service:
+                await backend_service.report_command_result(
+                    command_id=command_id,
+                    status="failed",
+                    error=str(e)
+                )
+
+            return {"error": str(e), "command_id": command_id}
 
     # Radio endpoint
     @app.get("/api/v1/radio/status")
@@ -271,8 +531,70 @@ def create_app() -> FastAPI:
     @app.get("/api/v1/status")
     async def system_status():
         try:
-            # This is a placeholder for actual system status logic
-            return {"overall_health": "healthy", "details": {}}
+            # Get MAVLink status
+            mavlink_status = {
+                "connected": mavlink_manager.is_connected() if mavlink_manager else False,
+                "armed": mavlink_manager.is_armed() if mavlink_manager else False,
+                "mode": mavlink_manager.get_mode() if mavlink_manager else None
+            }
+
+            # Get GPS status
+            gps_status = None
+            if mavlink_manager and mavlink_manager.is_connected():
+                gps_data = await mavlink_manager.get_gps_data()
+                if gps_data:
+                    gps_status = {
+                        "fix_type": gps_data.fix_type,
+                        "satellites_visible": gps_data.satellites_visible,
+                        "hdop": gps_data.hdop,
+                        "vdop": gps_data.vdop
+                    }
+
+            # Get system metrics
+            system_metrics = {
+                "cpu_percent": psutil.cpu_percent(),
+                "memory_percent": psutil.virtual_memory().percent,
+                "disk_percent": psutil.disk_usage('/').percent
+            }
+
+            # Get backend status
+            backend_status = {
+                "registered": backend_service.registered if backend_service else False,
+                "heartbeat_active": backend_service.heartbeat_task is not None if backend_service else False,
+                "telemetry_active": backend_service.telemetry_task is not None if backend_service else False,
+                "command_polling_active": backend_service.command_polling_task is not None if backend_service else False,
+                "telemetry_buffer_size": len(backend_service.telemetry_buffer) if backend_service else 0
+            }
+
+            # Get WebSocket status
+            websocket_status = {
+                "active_connections": len(websocket_manager.active_connections),
+                "telemetry_active": telemetry_service.is_running() if telemetry_service else False
+            }
+
+            # Determine overall health
+            health_checks = [
+                mavlink_status["connected"],
+                backend_status["registered"],
+                gps_status["fix_type"] > 0 if gps_status else False,
+                system_metrics["cpu_percent"] < 90,
+                system_metrics["memory_percent"] < 90,
+                system_metrics["disk_percent"] < 90
+            ]
+            overall_health = "healthy" if all(health_checks) else "degraded" if any(health_checks) else "unhealthy"
+
+            status = {
+                "overall_health": overall_health,
+                "timestamp": datetime.now().isoformat(),
+                "mavlink": mavlink_status,
+                "gps": gps_status,
+                "system": system_metrics,
+                "backend": backend_status,
+                "websocket": websocket_status
+            }
+
+            return status
+
         except Exception as e:
             logger.error(f"System status error: {e}")
             return {"error": str(e)}

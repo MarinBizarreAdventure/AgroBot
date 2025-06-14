@@ -403,3 +403,157 @@ class DataStream(BaseModel):
                 "encryption_enabled": False
             }
         }
+
+
+# Placeholder for HardwareInfo (if not defined elsewhere)
+class HardwareInfo(BaseModel):
+    cpu_model: str = Field(..., description="CPU model of the Raspberry Pi")
+    ram_gb: float = Field(..., description="Total RAM in GB")
+    disk_gb: float = Field(..., description="Total disk space in GB")
+    serial_number: Optional[str] = Field(None, description="Raspberry Pi serial number")
+    camera_present: bool = False
+    # Add other relevant hardware details
+
+
+# Placeholder for Capabilities (if not defined elsewhere)
+class Capability(BaseModel):
+    name: str = Field(..., description="Name of the capability (e.g., 'GPS', 'Arming', 'MissionPlanning')")
+    supported: bool = Field(..., description="Whether the capability is supported by this robot")
+    version: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+
+
+# Placeholder for Robot Location
+class Location(BaseModel):
+    latitude: float = Field(..., description="Robot's current latitude")
+    longitude: float = Field(..., description="Robot's current longitude")
+    altitude: Optional[float] = Field(None, description="Robot's current altitude")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of the location data")
+
+
+# Registration Models
+class RegisterRequest(BaseModel):
+    robot_id: str = Field(..., description="Unique ID of the Raspberry Pi robot")
+    hardware_info: HardwareInfo = Field(..., description="Detailed hardware specifications")
+    capabilities: List[Capability] = Field(..., description="List of capabilities supported by the robot")
+    location: Optional[Location] = Field(None, description="Current location of the robot")
+    software_version: str = Field(..., description="Current software version of the controller")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "robot_id": "agrobot-rpi-001",
+                "hardware_info": {
+                    "cpu_model": "Raspberry Pi 4 Model B Rev 1.4",
+                    "ram_gb": 4.0,
+                    "disk_gb": 32.0,
+                    "serial_number": "00000000abcdef12",
+                    "camera_present": True
+                },
+                "capabilities": [
+                    {"name": "GPS", "supported": True},
+                    {"name": "Arming", "supported": True},
+                    {"name": "MissionPlanning", "supported": False}
+                ],
+                "location": {"latitude": 45.123, "longitude": -122.456, "altitude": 10.0},
+                "software_version": "1.0.0"
+            }
+        }
+
+
+class RegisterResponse(BaseModel):
+    success: bool = Field(..., description="True if registration was successful")
+    message: str = Field(..., description="Human-readable message")
+    robot_id: str = Field(..., description="Registered robot ID")
+    backend_status: Optional[str] = Field(None, description="Status from backend after registration")
+
+
+# Heartbeat Models
+class QuickHealth(BaseModel):
+    cpu_percent: float = Field(..., description="Current CPU usage percentage")
+    memory_percent: float = Field(..., description="Current memory usage percentage")
+    disk_percent: float = Field(..., description="Current disk usage percentage")
+    mavlink_connected: bool = Field(..., description="Is MAVLink connected?")
+    gps_fix: bool = Field(..., description="Does GPS have a fix?")
+
+
+class HeartbeatRequest(BaseModel):
+    robot_id: str = Field(..., description="Unique ID of the Raspberry Pi robot")
+    status: str = Field(..., description="Current operational status (e.g., 'active', 'idle', 'error')")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of the heartbeat")
+    quick_health: QuickHealth = Field(..., description="Quick snapshot of system health")
+
+
+class HeartbeatResponse(BaseModel):
+    success: bool = Field(..., description="True if heartbeat was processed")
+    message: str = Field(..., description="Human-readable message from backend")
+    server_time: datetime = Field(default_factory=datetime.now, description="Backend server timestamp")
+    commands_pending: int = Field(0, description="Number of commands pending for this robot")
+
+
+# Command Management Models
+class PendingCommandsResponse(BaseModel):
+    success: bool = Field(..., description="True if commands were retrieved")
+    message: str = Field(..., description="Human-readable message")
+    commands: List[BackendCommand] = Field(..., description="List of pending commands for this robot")
+
+
+class CommandResultRequest(BaseModel):
+    command_id: str = Field(..., description="Unique ID of the command")
+    status: str = Field(..., description="Execution status ('completed', 'failed', 'in_progress', 'rejected')")
+    result: Optional[Dict[str, Any]] = Field(None, description="Result data if command completed successfully")
+    error: Optional[str] = Field(None, description="Error message if command failed")
+    execution_time: Optional[float] = Field(None, description="Time taken to execute command in seconds")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of the result report")
+
+
+class CommandResultResponse(BaseModel):
+    success: bool = Field(..., description="True if result was received by backend")
+    message: str = Field(..., description="Human-readable message from backend")
+
+
+# Data Transmission Models
+class TelemetryDataPoint(BaseModel):
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of this telemetry point")
+    gps: Optional[Dict[str, Any]] = None # Use Dict as GPSData and other models may not be directly JSON serializable without .dict()
+    attitude: Optional[Dict[str, Any]] = None
+    battery: Optional[Dict[str, Any]] = None
+    sensors: Optional[Dict[str, Any]] = None # Placeholder for other sensor data
+
+
+class TelemetryBatchRequest(BaseModel):
+    robot_id: str = Field(..., description="Unique ID of the Raspberry Pi robot")
+    data: List[TelemetryDataPoint] = Field(..., description="List of telemetry data points")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "robot_id": "agrobot-rpi-001",
+                "data": [
+                    {
+                        "timestamp": "2024-01-01T12:00:00Z",
+                        "gps": {"latitude": 45.1, "longitude": -122.1},
+                        "battery": {"voltage": 12.5, "remaining": 90}
+                    }
+                ]
+            }
+        }
+
+
+class TelemetryBatchResponse(BaseModel):
+    success: bool = Field(..., description="True if telemetry batch was received")
+    message: str = Field(..., description="Human-readable message from backend")
+    records_received: int = Field(..., description="Number of telemetry records processed")
+
+
+class AlertRequest(BaseModel):
+    robot_id: str = Field(..., description="Unique ID of the Raspberry Pi robot")
+    severity: str = Field(..., description="Severity level ('critical', 'warning', 'info')")
+    message: str = Field(..., description="Alert message")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Timestamp of the alert")
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional alert details")
+
+
+class AlertResponse(BaseModel):
+    success: bool = Field(..., description="True if alert was received by backend")
+    message: str = Field(..., description="Human-readable message from backend")

@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     BACKEND_TIMEOUT: float = 10.0
     BACKEND_RETRY_ATTEMPTS: int = 3
     BACKEND_SYNC_INTERVAL: float = 30.0  # seconds
+    MAX_RECONNECT_ATTEMPTS: int = 10
+    RECONNECT_DELAY: int = 5
     
     # Robot identification
     ROBOT_ID: str = "agrobot-rpi-001"
@@ -70,8 +72,12 @@ class Settings(BaseSettings):
     
     # Telemetry settings
     TELEMETRY_ENABLED: bool = True
-    TELEMETRY_INTERVAL: float = 1.0  # seconds
+    TELEMETRY_INTERVAL: float = 5.0  # seconds
     TELEMETRY_BUFFER_SIZE: int = 1000
+    TELEMETRY_BATCH_SIZE: int = 100
+    HEARTBEAT_INTERVAL: float = 10.0 # seconds
+
+    COMMAND_POLLING_INTERVAL: float = 5.0 # seconds
     
     # WebSocket settings
     WEBSOCKET_MAX_CONNECTIONS: int = 10
