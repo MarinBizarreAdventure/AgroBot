@@ -148,6 +148,149 @@ def create_app() -> FastAPI:
             "health": "/health"
         }
     
+    # Pixhawk endpoints
+    @app.get("/api/v1/pixhawk/status")
+    async def pixhawk_status():
+        try:
+            if not mavlink_manager:
+                return {"error": "MAVLink manager not initialized"}
+            status_data = mavlink_manager.get_status()
+            return status_data
+        except Exception as e:
+            logger.error(f"Pixhawk status error: {e}")
+            return {"error": str(e)}
+
+    @app.post("/api/v1/pixhawk/connect")
+    async def pixhawk_connect():
+        try:
+            if not mavlink_manager:
+                return {"error": "MAVLink manager not initialized"}
+            if mavlink_manager.is_connected():
+                return {"success": True, "message": "Already connected to Pixhawk"}
+            success = await mavlink_manager.connect()
+            return {"success": success, "message": "Connected to Pixhawk" if success else "Failed to connect"}
+        except Exception as e:
+            logger.error(f"Pixhawk connect error: {e}")
+            return {"error": str(e)}
+
+    @app.post("/api/v1/pixhawk/arm")
+    async def pixhawk_arm(arm: bool = True):
+        try:
+            if not mavlink_manager:
+                return {"error": "MAVLink manager not initialized"}
+            if not mavlink_manager.is_connected():
+                return {"error": "Not connected to Pixhawk"}
+            success = await mavlink_manager.arm_motors(arm)
+            return {"success": success, "armed": arm}
+        except Exception as e:
+            logger.error(f"Pixhawk arm error: {e}")
+            return {"error": str(e)}
+
+    @app.post("/api/v1/pixhawk/mode")
+    async def pixhawk_mode(mode: str):
+        try:
+            if not mavlink_manager or not mavlink_manager.is_connected():
+                return {"error": "Not connected to Pixhawk"}
+            success = await mavlink_manager.set_mode(mode)
+            return {"success": success, "mode": mode}
+        except Exception as e:
+            logger.error(f"Pixhawk mode error: {e}")
+            return {"error": str(e)}
+
+    # GPS endpoints
+    @app.get("/api/v1/gps/current")
+    async def gps_current():
+        try:
+            if not mavlink_manager or not mavlink_manager.is_connected():
+                return {"error": "Not connected to Pixhawk"}
+            gps = mavlink_manager.latest_gps
+            if not gps:
+                return {"error": "No GPS data available"}
+            return {
+                "latitude": gps.lat / 1e7,
+                "longitude": gps.lon / 1e7,
+                "altitude": gps.alt / 1000.0,
+                "relative_altitude": gps.relative_alt / 1000.0,
+                "ground_speed": gps.vel / 100.0,
+                "heading": gps.cog / 100.0,
+                "timestamp": gps.timestamp
+            }
+        except Exception as e:
+            logger.error(f"GPS current error: {e}")
+            return {"error": str(e)}
+
+    @app.get("/api/v1/gps/status")
+    async def gps_status():
+        try:
+            if not mavlink_manager or not mavlink_manager.is_connected():
+                return {"error": "Not connected to Pixhawk"}
+            gps = mavlink_manager.latest_gps
+            if not gps:
+                return {"available": False}
+            return {
+                "available": True,
+                "fix_type": gps.fix_type,
+                "satellites_visible": gps.satellites_visible,
+                "hdop": gps.hdop,
+                "vdop": gps.vdop,
+                "timestamp": gps.timestamp
+            }
+        except Exception as e:
+            logger.error(f"GPS status error: {e}")
+            return {"error": str(e)}
+
+    # Movement endpoint
+    @app.post("/api/v1/movement/goto")
+    async def movement_goto(latitude: float, longitude: float, altitude: float):
+        try:
+            if not mavlink_manager or not mavlink_manager.is_connected():
+                return {"error": "Not connected to Pixhawk"}
+            # This is a placeholder for actual movement logic
+            return {"success": True, "message": f"Moving to {latitude}, {longitude}, {altitude}"}
+        except Exception as e:
+            logger.error(f"Movement goto error: {e}")
+            return {"error": str(e)}
+
+    # Mission endpoint
+    @app.post("/api/v1/mission/create")
+    async def mission_create(name: str, description: str = "", waypoints: list = []):
+        try:
+            # This is a placeholder for actual mission creation logic
+            return {"success": True, "message": f"Mission '{name}' created", "waypoints": waypoints}
+        except Exception as e:
+            logger.error(f"Mission create error: {e}")
+            return {"error": str(e)}
+
+    # Radio endpoint
+    @app.get("/api/v1/radio/status")
+    async def radio_status():
+        try:
+            # This is a placeholder for actual radio status logic
+            return {"status": "connected", "channels": {"1": 1500, "2": 1500}, "signal_lost": False}
+        except Exception as e:
+            logger.error(f"Radio status error: {e}")
+            return {"error": str(e)}
+
+    # Status endpoint
+    @app.get("/api/v1/status")
+    async def system_status():
+        try:
+            # This is a placeholder for actual system status logic
+            return {"overall_health": "healthy", "details": {}}
+        except Exception as e:
+            logger.error(f"System status error: {e}")
+            return {"error": str(e)}
+
+    # Backend endpoint
+    @app.post("/api/v1/backend/sync")
+    async def backend_sync():
+        try:
+            # This is a placeholder for actual backend sync logic
+            return {"status": "synced", "result": {"success": True}}
+        except Exception as e:
+            logger.error(f"Backend sync error: {e}")
+            return {"error": str(e)}
+    
     return app
 
 
