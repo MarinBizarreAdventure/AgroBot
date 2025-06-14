@@ -38,7 +38,7 @@ EXPOSE 8000
 EXPOSE 8001
 
 # Default command
-CMD ["python3", "-m", "uvicorn", "test_app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
 
 # Alternative commands for different use cases:
 # Development: docker run --env ENVIRONMENT=development agrobot-rpi
