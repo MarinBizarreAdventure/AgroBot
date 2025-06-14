@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     BACKEND_SYNC_INTERVAL: float = 30.0  # seconds
     MAX_RECONNECT_ATTEMPTS: int = 10
     RECONNECT_DELAY: int = 5
+    BACKEND_PORT_SCAN: int = 5000 # Port to scan for backend if initial connection fails
     
     # Robot identification
     ROBOT_ID: str = "agrobot-rpi-001"

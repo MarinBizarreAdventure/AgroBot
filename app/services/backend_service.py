@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 import uuid
 import socket
+import ipaddress # Added for network scanning
+import httpx # Added for scan_for_backend connection checks
 
 from app.core.backend.client import BackendClient
 from app.models.backend import (
@@ -18,19 +20,21 @@ from app.models.backend import (
     CommandResultRequest, CommandResultResponse,
     TelemetryBatchRequest, TelemetryDataPoint,
     AlertRequest, AlertResponse,
-    HardwareInfo, Capability, Location, QuickHealth, BackendCommand
+    HardwareInfo, Capability, Location, QuickHealth, BackendCommand,
+    PendingCommandsResponse # Import PendingCommandsResponse
 )
-from config.settings import get_settings
+from config.settings import get_settings # Corrected import for settings
 from app.core.mavlink.connection import MAVLinkManager # Assuming this is the source of GPS and MAVLink status
 
 logger = logging.getLogger(__name__)
+
 
 def get_local_ip():
     """Attempts to get the local IP address of the machine."""
     try:
         # Connect to a dummy external address to find the interface's IP
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
+        s.connect(("8.8.8.8", 80)) # Google's public DNS server or any public IP
         ip = s.getsockname()[0]
         s.close()
         return ip
@@ -38,9 +42,10 @@ def get_local_ip():
         logger.warning(f"Could not determine local IP address: {e}. Defaulting to localhost.")
         return "127.0.0.1"
 
+
 class BackendService:
     def __init__(self, mavlink_manager: MAVLinkManager):
-        self.settings = get_settings()
+        self.settings = get_settings() # Access settings via instance variable
         self.backend_client = BackendClient(base_url=self.settings.AGROBOT_BACKEND_URL, api_key=self.settings.AGROBOT_API_KEY)
         self.mavlink_manager = mavlink_manager
         self.robot_id = self.settings.ROBOT_ID
@@ -71,7 +76,7 @@ class BackendService:
             Capability(name="GPS", supported=True, details={"accuracy": "high"}),
             Capability(name="Arming", supported=True),
             Capability(name="Movement", supported=True, details={"modes": ["goto", "velocity"]}),
-            Capability(name="MissionPlanning", supported=True), 
+            Capability(name="MissionPlanning", supported=True),
             Capability(name="Telemetry", supported=True, details={"frequency": "configurable"})
         ]
 
@@ -113,19 +118,17 @@ class BackendService:
             attempt += 1
             delay = min(base_delay * (2 ** (attempt - 1)), 300)
             logger.info(f"Attempting to register robot {self.robot_id} at {robot_ip}:{robot_port} (Attempt {attempt}/{max_attempts})...")
-            
-            try:
-                capabilities = await self._get_robot_capabilities()
-                current_location = await self._get_current_location()
 
+            try:
+                # Attempt registration with the configured URL first
                 register_request = RegisterRequest(
                     robot_id=self.robot_id,
                     robot_name=self.settings.ROBOT_NAME,
                     version=self.settings.VERSION,
                     robot_ip_address=robot_ip,
                     robot_port=robot_port,
-                    capabilities=capabilities,
-                    location=current_location,
+                    capabilities=await self._get_robot_capabilities(),
+                    location=await self._get_current_location(),
                     software_version=self.settings.VERSION,
                     metadata={}
                 )
@@ -136,14 +139,37 @@ class BackendService:
                     logger.info(f"Robot {self.robot_id} successfully registered with backend.")
                     break
                 else:
-                    logger.warning(f"Registration failed: {response.message if response else 'No response from backend'}. Retrying in {delay}s...")
+                    logger.warning(f"Initial registration failed: {response.message if response else 'No response from backend'}.")
+
+                    # If initial registration fails, try scanning the network
+                    logger.info("Initial registration failed. Scanning local network for backend...")
+                    # Use the BACKEND_PORT_SCAN setting for the port to scan
+                    found_url = await self.backend_client.scan_for_backend(port=self.settings.BACKEND_PORT_SCAN)
+                    if found_url:
+                        logger.info(f"Backend found at {found_url}. Updating BackendClient base_url and retrying registration.")
+                        self.backend_client.base_url = found_url
+                        # Re-initialize the httpx client with the new base URL
+                        await self.backend_client.close() # Close old client
+                        self.backend_client.client = httpx.AsyncClient(base_url=self.backend_client.base_url, timeout=self.settings.BACKEND_TIMEOUT)
+
+                        # Retry registration immediately with the new URL (within the same attempt logic)
+                        response = await self.backend_client.register_robot(register_request) # Use the same request_data
+                        if response and response.success:
+                            self.registered = True
+                            logger.info(f"Robot {self.robot_id} successfully registered with backend after scan.")
+                            break
+                        else:
+                            logger.warning(f"Registration failed after scan: {response.message if response else 'No response'}. Retrying in {delay}s...")
+                    else:
+                        logger.warning(f"No backend found after network scan. Retrying registration in {delay}s...")
+
             except Exception as e:
                 logger.error(f"Error during registration attempt {attempt}: {e}. Retrying in {delay}s...")
-            
+
             if attempt >= max_attempts:
                 logger.error(f"Max registration attempts ({max_attempts}) reached. Cannot connect to backend.")
                 break
-            
+
             await asyncio.sleep(delay)
 
     async def _heartbeat_loop(self):
@@ -166,14 +192,14 @@ class BackendService:
                 except Exception as e:
                     logger.error(f"Error sending heartbeat: {e}. Attempting to re-register.")
                     self.registered = False
-            
+
             await asyncio.sleep(self.settings.HEARTBEAT_INTERVAL)
 
     async def _telemetry_loop(self):
         while not self.stop_event.is_set():
-            await asyncio.sleep(self.settings.TELEMETRY_INTERVAL)
+            await asyncio.sleep(self.settings.TELEMETRY_INTERVAL) # Corrected to self.settings
             if self.registered and self.telemetry_buffer:
-                batch_size = self.settings.TELEMETRY_BATCH_SIZE
+                batch_size = self.settings.TELEMETRY_BATCH_SIZE # Corrected to self.settings
                 while self.telemetry_buffer:
                     batch = self.telemetry_buffer[:batch_size]
                     batch_request = TelemetryBatchRequest(
@@ -215,8 +241,8 @@ class BackendService:
                         logger.warning(f"Failed to poll commands: {response.message if response else 'No response'}.")
                 except Exception as e:
                     logger.error(f"Error polling commands: {e}.")
-            
-            await asyncio.sleep(self.settings.COMMAND_POLLING_INTERVAL)
+
+            await asyncio.sleep(self.settings.COMMAND_POLLING_INTERVAL) # Corrected to self.settings
 
     async def report_command_result(self, command_id: str, status: str, result: Optional[Dict[str, Any]] = None, error: Optional[str] = None, execution_time: Optional[float] = None):
         if not self.registered:
@@ -286,10 +312,3 @@ class BackendService:
             except asyncio.CancelledError: pass
         await self.backend_client.close()
         logger.info("BackendService shutdown complete.")
-
-# Note: This BackendService requires MAVLinkManager to be initialized and passed in.
-# For example, in main.py, you would do:
-# from app.core.mavlink.connection import MAVLinkManager
-# mavlink_manager = MAVLinkManager() # Or retrieve from dependency injection
-# backend_service = BackendService(mavlink_manager)
-# Then call backend_service.startup() in a FastAPI lifespan event.
