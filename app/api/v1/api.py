@@ -20,50 +20,11 @@ from app.api.v1.endpoints import (
 api_router = APIRouter()
 
 # Include all endpoint routers
-api_router.include_router(
-    health.router,
-    prefix="/health",
-    tags=["Health Check"]
-)
-
-api_router.include_router(
-    pixhawk.router,
-    prefix="/pixhawk",
-    tags=["Pixhawk Control"]
-)
-
-api_router.include_router(
-    gps.router,
-    prefix="/gps",
-    tags=["GPS"]
-)
-
-api_router.include_router(
-    movement.router,
-    prefix="/movement",
-    tags=["Movement Control"]
-)
-
-api_router.include_router(
-    mission.router,
-    prefix="/mission",
-    tags=["Mission Planning"]
-)
-
-api_router.include_router(
-    radio.router,
-    prefix="/radio",
-    tags=["Radio Control"]
-)
-
-api_router.include_router(
-    status.router,
-    prefix="/status",
-    tags=["Status & Diagnostics"]
-)
-
-api_router.include_router(
-    backend.router,
-    prefix="/backend",
-    tags=["Backend Communication"]
-)
+api_router.include_router(health.router, tags=["Health Check"])
+api_router.include_router(pixhawk.router, tags=["Pixhawk Control"])
+api_router.include_router(gps.router, tags=["GPS"])
+api_router.include_router(movement.router, tags=["Movement Control"])
+api_router.include_router(mission.router, tags=["Mission Planning"])
+api_router.include_router(radio.router, tags=["Radio Control"])
+api_router.include_router(status.router, tags=["Status & Diagnostics"])
+api_router.include_router(backend.router, tags=["Backend Communication"])
