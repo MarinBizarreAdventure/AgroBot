@@ -40,10 +40,10 @@ def get_local_ip():
 
 class BackendService:
     def __init__(self, mavlink_manager: MAVLinkManager):
-        settings = get_settings()
-        self.backend_client = BackendClient(base_url=settings.AGROBOT_BACKEND_URL, api_key=settings.AGROBOT_API_KEY)
+        self.settings = get_settings()
+        self.backend_client = BackendClient(base_url=self.settings.AGROBOT_BACKEND_URL, api_key=self.settings.AGROBOT_API_KEY)
         self.mavlink_manager = mavlink_manager
-        self.robot_id = settings.ROBOT_ID
+        self.robot_id = self.settings.ROBOT_ID
         self.registered = False
         self.stop_event = asyncio.Event()
         self.heartbeat_task: Optional[asyncio.Task] = None
@@ -103,11 +103,11 @@ class BackendService:
 
     async def register_robot_with_retry(self):
         attempt = 0
-        max_attempts = settings.MAX_RECONNECT_ATTEMPTS
-        base_delay = settings.RECONNECT_DELAY
+        max_attempts = self.settings.MAX_RECONNECT_ATTEMPTS
+        base_delay = self.settings.RECONNECT_DELAY
 
         robot_ip = get_local_ip()
-        robot_port = settings.PORT
+        robot_port = self.settings.PORT
 
         while not self.registered and not self.stop_event.is_set():
             attempt += 1
@@ -120,13 +120,13 @@ class BackendService:
 
                 register_request = RegisterRequest(
                     robot_id=self.robot_id,
-                    robot_name=settings.ROBOT_NAME,
-                    version=settings.VERSION,
+                    robot_name=self.settings.ROBOT_NAME,
+                    version=self.settings.VERSION,
                     robot_ip_address=robot_ip,
                     robot_port=robot_port,
                     capabilities=capabilities,
                     location=current_location,
-                    software_version=settings.VERSION,
+                    software_version=self.settings.VERSION,
                     metadata={}
                 )
                 response = await self.backend_client.register_robot(register_request)
@@ -162,19 +162,18 @@ class BackendService:
                         logger.debug(f"Heartbeat sent. Backend commands pending: {response.commands_pending}")
                     else:
                         logger.warning(f"Heartbeat failed: {response.message if response else 'No response'}. Attempting to re-register.")
-                        self.registered = False # Mark as not registered to trigger re-registration
-                        # self.register_robot_with_retry() # This should be handled by the main lifespan or a separate watchdog task
+                        self.registered = False
                 except Exception as e:
                     logger.error(f"Error sending heartbeat: {e}. Attempting to re-register.")
                     self.registered = False
             
-            await asyncio.sleep(settings.HEARTBEAT_INTERVAL)
+            await asyncio.sleep(self.settings.HEARTBEAT_INTERVAL)
 
     async def _telemetry_loop(self):
         while not self.stop_event.is_set():
-            await asyncio.sleep(settings.TELEMETRY_INTERVAL)
+            await asyncio.sleep(self.settings.TELEMETRY_INTERVAL)
             if self.registered and self.telemetry_buffer:
-                batch_size = settings.TELEMETRY_BATCH_SIZE
+                batch_size = self.settings.TELEMETRY_BATCH_SIZE
                 while self.telemetry_buffer:
                     batch = self.telemetry_buffer[:batch_size]
                     batch_request = TelemetryBatchRequest(
@@ -188,7 +187,7 @@ class BackendService:
                             self.telemetry_buffer = self.telemetry_buffer[response.records_received:]
                         else:
                             logger.warning(f"Failed to send telemetry batch: {response.message if response else 'No response'}. Data remains in buffer.")
-                            break # Stop sending more batches if current one failed
+                            break
                     except Exception as e:
                         logger.error(f"Error sending telemetry batch: {e}. Data remains in buffer.")
                         break
@@ -204,13 +203,11 @@ class BackendService:
                         logger.info(f"Received {len(response.commands)} pending commands.")
                         for command in response.commands:
                             logger.info(f"Processing command: {command.command_id} - {command.command_type}")
-                            # Here you would integrate with a CommandExecutionService
-                            # For now, just report success immediately
                             await self.report_command_result(
                                 command_id=command.command_id,
                                 status="completed",
                                 result={"message": "Command processed by client placeholder"},
-                                execution_time=0.1 # Placeholder
+                                execution_time=0.1
                             )
                     elif response and response.success:
                         logger.debug("No pending commands.")
@@ -219,7 +216,7 @@ class BackendService:
                 except Exception as e:
                     logger.error(f"Error polling commands: {e}.")
             
-            await asyncio.sleep(settings.COMMAND_POLLING_INTERVAL) # Need to add this to settings
+            await asyncio.sleep(self.settings.COMMAND_POLLING_INTERVAL)
 
     async def report_command_result(self, command_id: str, status: str, result: Optional[Dict[str, Any]] = None, error: Optional[str] = None, execution_time: Optional[float] = None):
         if not self.registered:
