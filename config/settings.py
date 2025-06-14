@@ -3,7 +3,7 @@ Configuration settings for AgroBot Raspberry Pi application
 """
 
 import os
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseSettings, validator
 from functools import lru_cache
 
@@ -96,9 +96,20 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+        @classmethod
+        def parse_env_var(cls, field_name: str, raw_val: str) -> Any:
+            if field_name == "ALLOWED_HOSTS":
+                if raw_val is None or raw_val.strip() == "":
+                    return []
+                # Attempt to parse as comma-separated list
+                return [host.strip() for host in raw_val.split(",")]
+            # For other fields, use Pydantic's default parsing
+            return cls.json_loads(raw_val) if raw_val else raw_val # Pydantic's default json_loads might be called here for other list types, or raw_val itself
     
     @validator("ALLOWED_HOSTS", pre=True)
     def validate_allowed_hosts(cls, v):
+        # This validator might still be called, but the parsing should be handled by parse_env_var now
         if isinstance(v, str):
             if v == "":
                 return []
