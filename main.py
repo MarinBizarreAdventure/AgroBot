@@ -55,7 +55,9 @@ async def lifespan(app: FastAPI):
         telemetry_service = TelemetryService(mavlink_manager, websocket_manager)
 
         # Initialize backend service
+        logger.info("Initializing BackendService...")
         backend_service = BackendService(mavlink_manager)
+        logger.info("BackendService initialized.")
         
         # Start MAVLink connection
         if settings.AUTO_CONNECT_MAVLINK:
@@ -70,8 +72,9 @@ async def lifespan(app: FastAPI):
                 logger.error(f"Failed to connect to Pixhawk: {e}")
         
         # Start backend service tasks (registration, heartbeat, etc.)
+        logger.info("Calling BackendService startup...")
         await backend_service.startup()
-        logger.info("Backend service started")
+        logger.info("Backend service startup call completed.")
 
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
