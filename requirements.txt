@@ -40,3 +40,6 @@ loguru==0.7.0
 # Security
 cryptography>=41.0.0
 bcrypt>=4.0.1
+
+# Network
+ipaddress==1.0.23
