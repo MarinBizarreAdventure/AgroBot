@@ -100,6 +100,8 @@ class Settings(BaseSettings):
     @validator("ALLOWED_HOSTS", pre=True)
     def validate_allowed_hosts(cls, v):
         if isinstance(v, str):
+            if v == "":
+                return []
             return [host.strip() for host in v.split(",")]
         return v
     
