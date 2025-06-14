@@ -19,7 +19,7 @@ from app.core.radio.receiver import Receiver
 from app.core.radio.failsafe import FailsafeManager
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/radio", tags=["Radio Control"])
 receiver = Receiver()
 failsafe = FailsafeManager()
 

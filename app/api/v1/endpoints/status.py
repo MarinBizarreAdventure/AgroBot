@@ -19,7 +19,7 @@ from config.settings import get_settings
 from main import get_mavlink_manager, get_telemetry_service
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/status", tags=["Status & Diagnostics"])
 
 
 @router.get("/", response_model=SystemStatus)

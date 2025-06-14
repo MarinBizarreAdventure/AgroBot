@@ -18,7 +18,7 @@ from config.settings import get_settings
 from main import get_mavlink_manager
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/gps", tags=["GPS"])
 
 # Store GPS history (in production, consider using a database)
 gps_history: List[Dict[str, Any]] = []

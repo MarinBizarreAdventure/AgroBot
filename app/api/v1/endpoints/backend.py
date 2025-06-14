@@ -20,7 +20,7 @@ from main import get_mavlink_manager
 from app.services.backend_service import BackendService
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/backend", tags=["Backend Communication"])
 
 # Global backend client instance
 backend_client: Optional[BackendClient] = None

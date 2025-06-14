@@ -22,7 +22,7 @@ from main import get_mavlink_manager
 from app.services.mission_service import MissionService
 
 logger = logging.getLogger(__name__)
-router = APIRouter()
+router = APIRouter(prefix="/mission", tags=["Mission Planning"])
 mission_service = MissionService()
 
 # Store active missions and execution state
