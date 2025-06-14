@@ -15,7 +15,7 @@ import asyncio
 
 from config.settings import get_settings
 from config.logging import setup_logging
-from app.api.v1.api import api_router
+from app.api.v1.app import v1_app
 from app.core.mavlink.connection import MAVLinkManager, MavlinkConnection
 from app.services.telemetry_service import TelemetryService
 from app.websocket.manager import WebSocketManager
@@ -100,7 +100,7 @@ def create_app() -> FastAPI:
     )
     
     # Include API routes
-    app.include_router(api_router, prefix="/api/v1")
+    app.mount("/api/v1", v1_app)
     
     # WebSocket endpoint
     @app.websocket("/ws")
