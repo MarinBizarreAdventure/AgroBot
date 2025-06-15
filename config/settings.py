@@ -58,7 +58,9 @@ class Settings(BaseSettings):
     MAX_WAYPOINTS: int = 100
     
     # AgroBot Backend settings
-    AGROBOT_BACKEND_URL: str = "http://192.168.100.6:5000"
+    AGROBOT_BACKEND_URL: str = "http://192.168.1.13:5000"
+
+
     AGROBOT_API_KEY: Optional[str] = None
     BACKEND_TIMEOUT: float = 10.0
     BACKEND_RETRY_ATTEMPTS: int = 3
