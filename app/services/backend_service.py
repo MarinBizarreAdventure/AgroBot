@@ -30,16 +30,19 @@ logger = logging.getLogger(__name__)
 
 
 def get_local_ip():
-    """Attempts to get the local IP address of the machine."""
+    """Attempts to get the local IP address of the machine without making external network calls.
+    It tries to connect to a non-routable private IP to determine the local interface's IP.
+    """
+    import socket
     try:
-        # Connect to a dummy external address to find the interface's IP
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80)) # Google's public DNS server or any public IP
+        # Connect to a common private network address (this doesn't send data, just sets up routing)
+        s.connect(("192.168.1.1", 1)) 
         ip = s.getsockname()[0]
         s.close()
         return ip
     except Exception as e:
-        logger.warning(f"Could not determine local IP address: {e}. Defaulting to localhost.")
+        logger.warning(f"Could not determine local IP address without external connection: {e}. Defaulting to localhost.")
         return "127.0.0.1"
 
 
