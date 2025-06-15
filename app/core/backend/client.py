@@ -6,8 +6,8 @@ import httpx
 import asyncio
 import logging
 from typing import Optional, Dict, Any, List
-import socket
-import ipaddress
+# import socket # Removed as no longer needed for get_local_ip or scanning
+# import ipaddress # Removed as no longer needed for scanning
 
 from app.models.backend import (
     RegisterRequest, RegisterResponse,
@@ -94,68 +94,6 @@ class BackendClient:
     async def close(self):
         await self.client.aclose()
         logger.info("BackendClient closed.")
-
-    async def scan_for_backend(self, port: int = 5000, timeout: float = 0.5) -> Optional[str]:
-        """Scans the local network for an active backend server on a given port.
-        Prioritizes common local network ranges.
-        """
-        logger.info(f"Scanning local network for backend on port {port}...")
-        
-        # Get local IP address to determine the network range
-        try:
-            local_ip = socket.gethostbyname(socket.gethostname())
-            network = ipaddress.ip_network(f'{local_ip}/24', strict=False)
-            target_ips = [str(ip) for ip in network.hosts()]
-            logger.debug(f"Scanning network {network} for backend.")
-        except Exception as e:
-            logger.warning(f"Could not determine local network: {e}. Falling back to common ranges.")
-            target_ips = []
-
-        # Add common private IP ranges if not already in target_ips or if network detection failed
-        common_ranges = [
-            "192.168.1.0/24",
-            "192.168.0.0/24",
-            "10.0.0.0/24",
-            "172.16.0.0/24"
-        ]
-        for cidr in common_ranges:
-            for ip in ipaddress.ip_network(cidr).hosts():
-                if str(ip) not in target_ips:
-                    target_ips.append(str(ip))
-
-        # Add localhost as a prime candidate
-        if "127.0.0.1" not in target_ips:
-            target_ips.insert(0, "127.0.0.1")
-
-        # Create tasks for parallel scanning
-        async def check_host(ip: str):
-            url = f"http://{ip}:{port}"
-            try:
-                # Attempt a simple GET request to the root or a health endpoint
-                # This is more robust than just checking if the socket is open
-                # and verifies it's a web server (likely Flask/FastAPI)
-                response = await httpx.get(url, timeout=timeout)
-                if response.status_code == 200:
-                    logger.info(f"Backend found at {url}")
-                    return url
-            except httpx.ConnectError:
-                pass # Host unreachable
-            except httpx.TimeoutException:
-                pass # Connection timed out
-            except Exception as e:
-                logger.debug(f"Error checking {url}: {e}")
-            return None
-
-        # Run checks concurrently
-        tasks = [check_host(ip) for ip in target_ips]
-        for task in asyncio.as_completed(tasks):
-            found_url = await task
-            if found_url:
-                for t in tasks: t.cancel() # Cancel remaining tasks once found
-                return found_url
-        
-        logger.warning(f"No backend found on port {port} in local network scan.")
-        return None
 
 # Example usage (for testing, not for production integration)
 async def main_client_test():
