@@ -15,11 +15,18 @@ class Settings(BaseSettings):
     APP_NAME: str = "AgroBot Raspberry Pi Controller"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
-    HOST: str = "0.0.0.0"
+    HOST: str = "0.0.0.0"  # Listen on all network interfaces
     PORT: int = 8000
     
     # CORS settings
-    ALLOWED_HOSTS: List[str] = ["*"]
+    ALLOWED_HOSTS: List[str] = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://192.168.1.*",  # Allow all IPs in the 192.168.1.x range
+        "http://10.0.0.*",     # Allow all IPs in the 10.0.0.x range
+        "http://172.16.0.*",   # Allow all IPs in the 172.16.0.x range
+        "*"                    # Allow all origins in development
+    ]
     
     # MAVLink/Pixhawk connection settings
     MAVLINK_CONNECTION_STRING: str = "/dev/ttyUSB0"  # or "udp:127.0.0.1:14550"

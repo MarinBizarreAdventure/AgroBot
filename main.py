@@ -115,6 +115,7 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        expose_headers=["*"]
     )
     
     # WebSocket endpoint
@@ -645,5 +646,8 @@ if __name__ == "__main__":
         port=settings.PORT,
         reload=settings.DEBUG,
         log_level="info" if not settings.DEBUG else "debug",
-        workers=1  # Single worker for better stability
+        workers=1,  # Single worker for better stability
+        access_log=True,  # Enable access logging
+        proxy_headers=True,  # Trust X-Forwarded-* headers
+        forwarded_allow_ips="*"  # Allow all forwarded IPs
     )
