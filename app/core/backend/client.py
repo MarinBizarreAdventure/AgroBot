@@ -27,7 +27,7 @@ class BackendClient:
         self.client = httpx.AsyncClient(base_url=self.base_url, timeout=get_settings().BACKEND_TIMEOUT)
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+                "Content-Type": "application/json"
         }
 
     async def _post(self, endpoint: str, data: Dict[str, Any], response_model: Any):
@@ -71,9 +71,9 @@ class BackendClient:
             logger.error(f"Robot registration failed: {response.message if response else 'No response'}")
         return response
 
-    async def send_heartbeat(self, request_data: HeartbeatRequest) -> Optional[HeartbeatResponse]:
-        logger.debug(f"Sending heartbeat for {request_data.robot_id}...")
-        return await self._post("/api/v1/backend/heartbeat", request_data.dict(), HeartbeatResponse)
+    async def send_heartbeat(self, request_data: Dict[str, Any]) -> Optional[HeartbeatResponse]:
+        logger.debug(f"Sending heartbeat for {request_data['robot_ip']}...")
+        return await self._post("/api/v1/heartbeat", request_data, HeartbeatResponse)
 
     async def poll_pending_commands(self) -> Optional[PendingCommandsResponse]:
         logger.debug("Polling for pending commands...")
@@ -127,7 +127,7 @@ async def main_client_test():
         status="active",
         quick_health=QuickHealth(cpu_percent=10.5, memory_percent=20.0, disk_percent=50.0, mavlink_connected=True, gps_fix=True)
     )
-    hb_resp = await test_client.send_heartbeat(heartbeat_req)
+    hb_resp = await test_client.send_heartbeat(heartbeat_req.dict())
     print(f"Heartbeat Response: {hb_resp}")
     
     await test_client.close()

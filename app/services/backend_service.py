@@ -179,13 +179,12 @@ class BackendService:
         while not self.stop_event.is_set():
             if self.registered:
                 try:
-                    quick_health = await self._get_quick_health()
-                    heartbeat_request = HeartbeatRequest(
-                        robot_id=self.robot_id,
-                        status="active",
-                        timestamp=datetime.now(),
-                        quick_health=quick_health
-                    )
+                    heartbeat_request = {
+                        "robot_ip": self.settings.ROBOT_IP_ADDRESS,
+                        "status": "online",
+                        "timestamp": datetime.now().isoformat(),
+                        "quick_health": {}
+                    }
                     response = await self.backend_client.send_heartbeat(heartbeat_request)
                     if response and response.success:
                         logger.debug(f"Heartbeat sent. Backend commands pending: {response.commands_pending}")
