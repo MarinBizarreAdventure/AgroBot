@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "AgroBot Raspberry Pi Controller"
     VERSION: str = "1.0.0"
     DEBUG: bool = False
-    HOST: str = "0.0.0.0"  # Listen on all network interfaces
+    HOST: str = "0.0.0.0"  # Listen on all network interfaces to allow local network access
     PORT: int = 8000
     
     # CORS settings
@@ -25,7 +25,7 @@ class Settings(BaseSettings):
         "http://192.168.1.*",  # Allow all IPs in the 192.168.1.x range
         "http://10.0.0.*",     # Allow all IPs in the 10.0.0.x range
         "http://172.16.0.*",   # Allow all IPs in the 172.16.0.x range
-        "*"                    # Allow all origins in development
+        "*"                    # Allow all origins for local network access
     ]
     
     # MAVLink/Pixhawk connection settings

@@ -108,7 +108,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan
     )
     
-    # Configure CORS
+    # Configure CORS for local network access
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.ALLOWED_HOSTS,
@@ -648,6 +648,6 @@ if __name__ == "__main__":
         log_level="info" if not settings.DEBUG else "debug",
         workers=1,  # Single worker for better stability
         access_log=True,  # Enable access logging
-        proxy_headers=True,  # Trust X-Forwarded-* headers
-        forwarded_allow_ips="*"  # Allow all forwarded IPs
+        proxy_headers=True,  # Enable proxy headers for local network access
+        forwarded_allow_ips="*"  # Allow all forwarded IPs for local network access
     )
