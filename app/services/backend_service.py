@@ -59,6 +59,19 @@ class BackendService:
         self.command_polling_task: Optional[asyncio.Task] = None
         self.telemetry_buffer: List[TelemetryDataPoint] = []
 
+    def _get_local_ip(self) -> str:
+        """Get the local IP address of the Raspberry Pi"""
+        try:
+            # Create a socket to determine the local IP
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            local_ip = s.getsockname()[0]
+            s.close()
+            return local_ip
+        except Exception as e:
+            logger.error(f"Error getting local IP: {e}")
+            return "127.0.0.1"  # Fallback to localhost
+
     async def _get_hardware_info(self) -> HardwareInfo:
         # Placeholder implementation - ideally, this would gather real data
         cpu_info = platform.processor() or "Unknown CPU"
@@ -180,10 +193,10 @@ class BackendService:
             if self.registered:
                 try:
                     heartbeat_request = {
-                        "robot_ip": self.settings.ROBOT_IP_ADDRESS,
+                        "quick_health": {},
+                        "robot_ip": self._get_local_ip(),
                         "status": "online",
-                        "timestamp": datetime.now().isoformat(),
-                        "quick_health": {}
+                        "timestamp": datetime.now().isoformat()
                     }
                     response = await self.backend_client.send_heartbeat(heartbeat_request)
                     if response and response.success:
